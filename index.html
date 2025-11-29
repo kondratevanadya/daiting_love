@@ -21,7 +21,7 @@
       if (!nickname) return alert('Введите ник!');
 
       // Отправляем данные на бэк Railway
-      const res = await fetch('https://datinglove-backend-production.up.railway.app.up.railway.app/saveNickname', {
+      const res = await fetch('https://datinglove-backend-production.up.railway.app/saveNickname', {
         method: 'POST',
         headers: {'Content-Type':'application/json'},
         body: JSON.stringify({
