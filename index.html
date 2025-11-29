@@ -21,7 +21,7 @@
         avatar_url: tgUser.photo_url || null
       };
 
-      await fetch('https://<railway-backend>.up.railway.app/saveProfile', {
+      await fetch('datinglove-backend-production.up.railway.app/saveProfile', {
         method: 'POST',
         headers: {'Content-Type': 'application/json'},
         body: JSON.stringify(payload)
