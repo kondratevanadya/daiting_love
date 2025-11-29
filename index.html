@@ -1,46 +1,259 @@
 <!DOCTYPE html>
-<html>
+<html lang="ru">
 <head>
-  <title>Mini App</title>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width,initial-scale=1" />
+<title>Профиль — Mini App</title>
+<style>
+  :root{
+    --bg:#f5f7fb; --card:#ffffff; --accent:#6c5ce7; --muted:#7b8aa5;
+  }
+  *{box-sizing:border-box}
+  body{margin:0;font-family:Inter,system-ui,Arial; background:linear-gradient(180deg,#f7f9ff 0%,var(--bg) 100%); color:#122; -webkit-font-smoothing:antialiased; padding:18px;}
+  .wrap{max-width:520px;margin:0 auto;}
+  .card{background:var(--card);border-radius:14px;padding:18px;box-shadow:0 6px 18px rgba(18,34,70,0.06);}
+  .header{display:flex;gap:14px;align-items:center;}
+  .avatar {
+    width:96px;height:96px;border-radius:18px;background:#eef2ff;display:flex;align-items:center;justify-content:center;overflow:hidden;border:1px solid rgba(18,34,70,0.06);
+  }
+  .avatar img{width:100%;height:100%;object-fit:cover;display:block;}
+  .title{flex:1}
+  .title h1{margin:0;font-size:18px;color:var(--accent)}
+  .title p{margin:4px 0 0;color:var(--muted);font-size:13px}
+
+  .field{margin-top:14px;display:flex;flex-direction:column;gap:8px}
+  label{font-size:12px;color:var(--muted)}
+  input[type="text"], input[type="number"]{
+    width:100%;padding:12px;border-radius:10px;border:1px solid #e6eaf0;font-size:15px;
+  }
+
+  .row{display:flex;gap:10px;margin-top:14px}
+  .btn{flex:1;padding:12px;border-radius:12px;border:0;background:linear-gradient(90deg,var(--accent),#8b7bff);color:#fff;font-weight:600;cursor:pointer}
+  .btn.ghost{background:transparent;color:var(--accent);border:1px solid rgba(108,92,231,0.12)}
+
+  .small{font-size:13px;color:var(--muted);margin-top:10px;text-align:center}
+
+  .file-input{display:none}
+  .controls{display:flex;gap:8px;align-items:center}
+  .upload-btn{padding:8px 10px;border-radius:10px;border:1px dashed rgba(18,34,70,0.06);background:#fbfdff;cursor:pointer;font-size:13px;color:var(--muted)}
+
+  @media (max-width:420px){
+    .avatar{width:76px;height:76px;border-radius:12px}
+    .card{padding:14px}
+    .title h1{font-size:16px}
+  }
+</style>
 </head>
 <body>
-  <h1>Ваш профиль</h1>
-  <div id="profile"></div>
+<div class="wrap">
+  <div class="card" id="profile-card">
+    <div class="header">
+      <div class="avatar" id="avatar-box">
+        <!-- avatar img inserted here -->
+        <span id="avatar-placeholder" style="color:var(--muted);font-size:12px">Нет фото</span>
+      </div>
+      <div class="title">
+        <h1 id="nickname-title">Загрузка...</h1>
+        <p id="age-line">Возраст: —</p>
+      </div>
+      <div style="display:flex;flex-direction:column;gap:8px">
+        <button class="btn ghost" id="editBtn">Редактировать</button>
+      </div>
+    </div>
 
-  <script src="https://telegram.org/js/telegram-web-app.js"></script>
-  <script>
-    const tgUser = window.Telegram.WebApp.initDataUnsafe.user;
-    const profileDiv = document.getElementById('profile');
+    <div id="editArea" style="display:none; margin-top:14px">
+      <div class="field">
+        <label>Ник (отображаемый)</label>
+        <input id="nickname" type="text" placeholder="Введите ник">
+      </div>
+      <div class="field">
+        <label>Возраст</label>
+        <input id="age" type="number" min="0" placeholder="Ваш возраст (год)">
+      </div>
 
-    // Сохраняем данные в бэк сразу при открытии мини-апа
-    async function saveProfile() {
-      const payload = {
-        tg_id: tgUser.id,
-        nickname: tgUser.username || tgUser.first_name,
-        age: null,               // пока пользователь не ввёл возраст
-        avatar_url: tgUser.photo_url || null
-      };
+      <div class="field">
+        <label>Фото профиля</label>
+        <div style="display:flex;gap:8px;align-items:center">
+          <label class="upload-btn" for="fileInput">Выбрать файл</label>
+          <input id="fileInput" class="file-input" type="file" accept="image/*">
+          <button class="btn" id="saveBtn">Сохранить</button>
+        </div>
+        <div class="small">Формат JPG/PNG. После загрузки фото заменит текущее.</div>
+      </div>
+    </div>
 
-      await fetch('datinglove-backend-production.up.railway.app/saveProfile', {
-        method: 'POST',
-        headers: {'Content-Type': 'application/json'},
+    <div id="status" class="small" style="margin-top:12px"></div>
+  </div>
+</div>
+
+<script>
+(async function(){
+  // ========== Настройки — ЗАМЕНИТЕ на ваш бекенд ==========
+  const RAILWAY_BACKEND = 'datinglove-backend-production.up.railway.app'; // <- замените!
+  // ======================================================
+
+  // Telegram WebApp user
+  const tgUser = window.Telegram && window.Telegram.WebApp && window.Telegram.WebApp.initDataUnsafe
+                 ? window.Telegram.WebApp.initDataUnsafe.user
+                 : null;
+
+  // Поля DOM
+  const avatarBox = document.getElementById('avatar-box');
+  const avatarPlaceholder = document.getElementById('avatar-placeholder');
+  const nicknameTitle = document.getElementById('nickname-title');
+  const ageLine = document.getElementById('age-line');
+  const editBtn = document.getElementById('editBtn');
+  const editArea = document.getElementById('editArea');
+  const nicknameInput = document.getElementById('nickname');
+  const ageInput = document.getElementById('age');
+  const fileInput = document.getElementById('fileInput');
+  const saveBtn = document.getElementById('saveBtn');
+  const status = document.getElementById('status');
+
+  // helper: show status
+  function showStatus(text, ok=true){
+    status.textContent = text;
+    status.style.color = ok ? '#2d9a6b' : '#d33';
+  }
+
+  // helper: set avatar image
+  function setAvatar(url){
+    avatarBox.innerHTML = '';
+    if (!url){
+      avatarBox.appendChild(avatarPlaceholder);
+      return;
+    }
+    const img = document.createElement('img');
+    img.src = url;
+    img.alt = 'avatar';
+    avatarBox.appendChild(img);
+  }
+
+  // Получить профиль с бэка
+  async function fetchProfile(tg_id){
+    try {
+      const res = await fetch(`${RAILWAY_BACKEND}/profile/${tg_id}`);
+      if (!res.ok) return null;
+      const data = await res.json();
+      return data;
+    } catch(e){
+      console.warn('fetchProfile error', e);
+      return null;
+    }
+  }
+
+  // Инициализация экрана
+  async function init(){
+    showStatus('Загрузка профиля...');
+    const tg_id = tgUser ? tgUser.id : null;
+
+    let profile = null;
+    if (tg_id) profile = await fetchProfile(tg_id);
+
+    // если профиль из бэка пуст — заполним фронтовыми Telegram данными
+    if (!profile){
+      const nickname = tgUser ? (tgUser.username || tgUser.first_name || 'Пользователь') : 'Гость';
+      const avatar = tgUser ? (tgUser.photo_url || null) : null;
+      nicknameTitle.textContent = nickname;
+      nicknameInput.value = nickname;
+      ageLine.textContent = 'Возраст: не указан';
+      ageInput.value = '';
+      setAvatar(avatar);
+      showStatus('Профиль локален — нажмите Сохранить, чтобы записать в базу.');
+      return;
+    }
+
+    // если есть данные с бэка — отображаем
+    nicknameTitle.textContent = profile.nickname || (tgUser ? (tgUser.username || tgUser.first_name) : 'Пользователь');
+    nicknameInput.value = profile.nickname || '';
+    ageLine.textContent = profile.age ? `Возраст: ${profile.age}` : 'Возраст: не указан';
+    ageInput.value = profile.age || '';
+    // avatar_url может быть либо data:image... либо внешняя ссылка
+    setAvatar(profile.avatar_url || (tgUser ? tgUser.photo_url : null));
+    showStatus('Профиль загружен');
+  }
+
+  // Показать/скрыть редактирование
+  let editing = false;
+  editBtn.addEventListener('click', ()=> {
+    editing = !editing;
+    editArea.style.display = editing ? 'block' : 'none';
+    editBtn.textContent = editing ? 'Отмена' : 'Редактировать';
+  });
+
+  // Сохранение профиля (ник + возраст + avatar_url если есть)
+  saveBtn.addEventListener('click', async ()=>{
+    const tg_id = tgUser ? tgUser.id : null;
+    if (!tg_id){
+      showStatus('Нет tg_id: авторизуйтесь через Telegram', false);
+      return;
+    }
+    const nickname = nicknameInput.value.trim();
+    const age = ageInput.value ? parseInt(ageInput.value,10) : null;
+
+    showStatus('Сохраняю...', true);
+    try {
+      const payload = { tg_id, nickname, age, avatar_url: null }; // avatar_url обновится после upload
+      const res = await fetch(`${RAILWAY_BACKEND}/saveProfile`, {
+        method:'POST',
+        headers:{'Content-Type':'application/json'},
         body: JSON.stringify(payload)
       });
-
-      showProfile(payload);
+      const json = await res.json();
+      if (json.ok || res.ok){
+        nicknameTitle.textContent = nickname || nicknameTitle.textContent;
+        ageLine.textContent = age ? `Возраст: ${age}` : 'Возраст: не указан';
+        showStatus('Профиль сохранён');
+        // если выбран файл — автоматически отправить его
+        if (fileInput.files && fileInput.files.length){
+          await uploadAvatar(tg_id, fileInput.files[0]);
+        }
+      } else {
+        throw new Error(json.error || 'Ошибка сервера');
+      }
+    } catch(e){
+      console.error(e);
+      showStatus('Ошибка сохранения', false);
     }
+  });
 
-    // Отображаем профиль
-    function showProfile(user) {
-      profileDiv.innerHTML = `
-        <p>Ник: ${user.nickname}</p>
-        <p>Возраст: ${user.age ? user.age : 'не указан'}</p>
-        ${user.avatar_url ? `<img src="${user.avatar_url}" width="100"/>` : ''}
-      `;
+  // Загрузка фото на бэкенд
+  async function uploadAvatar(tg_id, file){
+    showStatus('Загружаю фото...');
+    try {
+      const fd = new FormData();
+      fd.append('photo', file);
+      fd.append('tg_id', tg_id);
+      const res = await fetch(`${RAILWAY_BACKEND}/uploadAvatar`, {
+        method: 'POST',
+        body: fd
+      });
+      const json = await res.json();
+      if (!res.ok) throw new Error(json.error || 'upload failed');
+      // После успешной загрузки обновляем профиль с бэка
+      const updated = await fetchProfile(tg_id);
+      setAvatar(updated && updated.avatar_url ? updated.avatar_url : URL.createObjectURL(file));
+      showStatus('Фото загружено');
+      // очистка input
+      fileInput.value = '';
+    } catch(err){
+      console.error(err);
+      showStatus('Ошибка загрузки фото', false);
     }
+  }
 
-    // Сохраняем и отображаем сразу
-    saveProfile();
-  </script>
+  // Быстрая отправка при смене файла
+  fileInput.addEventListener('change', async ()=>{
+    if (!fileInput.files.length) return;
+    const tg_id = tgUser ? tgUser.id : null;
+    // если пользователь не сохранил профиль — предложим сначала сохранить данные (но можно и загрузить сразу)
+    await uploadAvatar(tg_id, fileInput.files[0]);
+  });
+
+  // Инициализация
+  init();
+
+})();
+</script>
 </body>
 </html>
