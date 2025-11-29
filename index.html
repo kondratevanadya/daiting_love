@@ -1,10 +1,43 @@
-<div class="registration-page">
-  <div class="overlay">
-    <div class="registration-box">
-      <h1>Добро пожаловать!</h1>
-      <input type="text" placeholder="Имя">
-      <input type="email" placeholder="Email">
-      <button>Зарегистрироваться</button>
-    </div>
-  </div>
-</div>
+<!DOCTYPE html>
+<html>
+<head>
+  <title>Mini App</title>
+</head>
+<body>
+  <h1>Введите ваш ник</h1>
+  <input type="text" id="nickname" placeholder="Ваш ник">
+  <button id="saveBtn">Сохранить</button>
+  <div id="profile"></div>
+
+  <script src="https://telegram.org/js/telegram-web-app.js"></script>
+  <script>
+    const user = window.Telegram.WebApp.initDataUnsafe.user;
+    const profileDiv = document.getElementById('profile');
+    const input = document.getElementById('nickname');
+    const btn = document.getElementById('saveBtn');
+
+    btn.addEventListener('click', async () => {
+      const nickname = input.value.trim();
+      if (!nickname) return alert('Введите ник!');
+
+      // Отправляем данные на бэк Railway
+      const res = await fetch('https://<railway-project>.up.railway.app/saveNickname', {
+        method: 'POST',
+        headers: {'Content-Type':'application/json'},
+        body: JSON.stringify({
+          telegram_id: user.id,
+          nickname
+        })
+      });
+      const result = await res.json();
+
+      if (result.ok) {
+        profileDiv.innerHTML = `<p>Ваш ник: ${nickname}</p>
+                                ${user.photo_url ? `<img src="${user.photo_url}" width="100"/>` : ''}`;
+      } else {
+        profileDiv.innerHTML = 'Ошибка сохранения';
+      }
+    });
+  </script>
+</body>
+</html>
